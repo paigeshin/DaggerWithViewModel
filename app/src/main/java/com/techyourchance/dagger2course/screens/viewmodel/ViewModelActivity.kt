@@ -14,6 +14,7 @@ import com.techyourchance.dagger2course.screens.common.ScreensNavigator
 import com.techyourchance.dagger2course.screens.common.activities.BaseActivity
 import com.techyourchance.dagger2course.screens.common.dialogs.DialogsNavigator
 import com.techyourchance.dagger2course.screens.common.toolbar.MyToolbar
+import com.techyourchance.dagger2course.screens.common.viewmodels.ViewModelFactory
 import com.techyourchance.dagger2course.screens.common.viewsmvc.ViewMvcFactory
 import kotlinx.coroutines.*
 import javax.inject.Inject
@@ -22,9 +23,10 @@ import javax.inject.Provider
 class ViewModelActivity : BaseActivity() {
 
     @Inject lateinit var screensNavigator: ScreensNavigator
-    @Inject lateinit var myViewModelFactory: MyViewModel.MyViewModelFactory
+    @Inject lateinit var myViewModelFactory: ViewModelFactory
 
     private lateinit var myViewModel: MyViewModel
+    private lateinit var myViewModelSecond: MyViewModelSecond
 
     private lateinit var toolbar: MyToolbar
 
@@ -40,6 +42,7 @@ class ViewModelActivity : BaseActivity() {
         }
 
         myViewModel = ViewModelProvider(this, myViewModelFactory).get(MyViewModel::class.java)
+        myViewModelSecond = ViewModelProvider(this, myViewModelFactory).get(MyViewModelSecond::class.java)
 
         myViewModel.question.observe(this, Observer { questions ->
             Toast.makeText(this, "fetched ${questions.size} questions", Toast.LENGTH_SHORT).show()
@@ -52,7 +55,5 @@ class ViewModelActivity : BaseActivity() {
             context.startActivity(intent)
         }
     }
-
-
 
 }
