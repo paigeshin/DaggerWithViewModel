@@ -22,7 +22,7 @@ import javax.inject.Provider
 class ViewModelActivity : BaseActivity() {
 
     @Inject lateinit var screensNavigator: ScreensNavigator
-    @Inject lateinit var myViewModelFactory: MyViewModelFactory
+    @Inject lateinit var myViewModelFactory: MyViewModel.MyViewModelFactory
 
     private lateinit var myViewModel: MyViewModel
 
@@ -53,13 +53,6 @@ class ViewModelActivity : BaseActivity() {
         }
     }
 
-    class MyViewModelFactory @Inject constructor(
-            private val fetchQuestionsUseCaseProvider: Provider<FetchQuestionsUseCase>,
-            private val fetchQuestionDetailsUseCaseProvider: Provider<FetchQuestionDetailsUseCase>
-    ): ViewModelProvider.Factory {
-        override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-            return MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get()) as T
-        }
-    }
+
 
 }

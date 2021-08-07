@@ -73,3 +73,76 @@ class MyViewModel @Inject constructor(private val fetchQuestionsUseCase: FetchQu
 
 }
 ```
+
+# v.2.0 - Refactoring in order not to provide more arguments
+
+- MyViewModel
+
+```kotlin
+class MyViewModel @Inject constructor(private val fetchQuestionsUseCase: FetchQuestionsUseCase,
+                                      private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase) : ViewModel() {
+
+    private val _questions = MutableLiveData<List<Question>>()
+    val question: LiveData<List<Question>> = _questions
+
+    init {
+        viewModelScope.launch {
+            val result = fetchQuestionsUseCase.fetchLatestQuestions()
+            if (result is FetchQuestionsUseCase.Result.Success) {
+                _questions.value = result.questions
+            } else {
+                throw RuntimeException("Fetch Failed")
+            }
+        }
+    }
+
+    class MyViewModelFactory @Inject constructor(
+            private val myViewModelProvider: Provider<MyViewModel>
+    ): ViewModelProvider.Factory {
+        override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+            return myViewModelProvider.get() as T
+        }
+    }
+
+}
+```
+
+- ViewModelActivity
+
+```kotlin
+class ViewModelActivity : BaseActivity() {
+
+    @Inject lateinit var screensNavigator: ScreensNavigator
+    @Inject lateinit var myViewModelFactory: MyViewModel.MyViewModelFactory
+
+    private lateinit var myViewModel: MyViewModel
+
+    private lateinit var toolbar: MyToolbar
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        injector.inject(this)
+        super.onCreate(savedInstanceState)
+
+        setContentView(R.layout.layout_view_model)
+
+        toolbar = findViewById(R.id.toolbar)
+        toolbar.setNavigateUpListener {
+            screensNavigator.navigateBack()
+        }
+
+        myViewModel = ViewModelProvider(this, myViewModelFactory).get(MyViewModel::class.java)
+
+        myViewModel.question.observe(this, Observer { questions ->
+            Toast.makeText(this, "fetched ${questions.size} questions", Toast.LENGTH_SHORT).show()
+        })
+    }
+
+    companion object {
+        fun start(context: Context) {
+            val intent = Intent(context, ViewModelActivity::class.java)
+            context.startActivity(intent)
+        }
+    }
+
+}
+```
