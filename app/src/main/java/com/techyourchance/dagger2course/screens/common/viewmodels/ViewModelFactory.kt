@@ -9,14 +9,10 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 class ViewModelFactory @Inject constructor(
-        private val myViewModelProvider: Provider<MyViewModel>,
-        private val myViewModelProviderSecond: Provider<MyViewModelSecond>
+        private val providers: Map<Class<out ViewModel>, @JvmSuppressWildcards Provider<ViewModel>>  // Input & Output
 ): ViewModelProvider.Factory {
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-        return when(modelClass) {
-            MyViewModel::class.java -> myViewModelProvider.get() as T
-            MyViewModelSecond::class.java -> myViewModelProviderSecond.get() as T
-            else -> throw RuntimeException("Unsupported ViewModel Type: $modelClass")
-        }
+        val provider = providers[modelClass]
+        return provider?.get() as T ?: throw RuntimeException("Unsupported viewmodel type: $modelClass")
     }
 }
