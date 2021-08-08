@@ -28,4 +28,6 @@ class MyViewModel @Inject constructor(
         }
     }
 
+//    override fun onInitialized(savedStateHandle: SavedStateHandle) {}
+
 }

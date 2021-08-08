@@ -499,3 +499,11 @@ open class BaseFragment: Fragment() {
 ```
 
 ⇒ PresentationModule(this)
+
+# v.6.0 - Why ViewModel is So Complex
+
+### Why ViewModel is that Complex?
+
+- Instead of Injecting ViewModel, inject ViewModel Factory
+- Violation of the Low of Demeter
+- Injection of runtime data structure into constructor (savedStateHandle)
