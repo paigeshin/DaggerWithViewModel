@@ -10,14 +10,14 @@ import javax.inject.Inject
 
 class MyViewModelSecond @Inject constructor(
         private val fetchQuestionsUseCase: FetchQuestionsUseCase,
-        private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase,
-        private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
+        private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase
+) : SavedStateViewModel() {
 
-    private val _questions = MutableLiveData<List<Question>>()
-    val question: LiveData<List<Question>> = _questions
+    private lateinit var _questions: MutableLiveData<List<Question>>
+    val question: LiveData<List<Question>> get() = _questions
 
-    init {
+    override fun init(savedStateHandle: SavedStateHandle) {
+        _questions = savedStateHandle.getLiveData("questions")
         viewModelScope.launch {
             val result = fetchQuestionsUseCase.fetchLatestQuestions()
             if (result is FetchQuestionsUseCase.Result.Success) {

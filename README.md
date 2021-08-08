@@ -507,3 +507,146 @@ open class BaseFragment: Fragment() {
 - Instead of Injecting ViewModel, inject ViewModel Factory
 - Violation of the Low of Demeter
 - Injection of runtime data structure into constructor (savedStateHandle)
+
+# v.7.0 - Simplification of ViewModel with SavedState
+
+### ViewModel's sources of complexity
+
+- Extended Lifecycle **by Framework Design**
+- Violation of the law of Demeter **by Framework Design**
+- Injection of SavedStateHandle data structure into constructor **(Accidental)**
+
+### Create `SavedStateViewModel`
+
+```kotlin
+abstract class SavedStateViewModel: ViewModel() {
+    abstract fun init(savedStateHandle: SavedStateHandle)
+}
+```
+
+### Refactor ViewModel
+
+- Before refactoring
+
+````kotlin
+```kotlin
+class ViewModelFactory @Inject constructor(
+        private val fetchQuestionDetailsUseCaseProvider: Provider<FetchQuestionDetailsUseCase>,
+        private val fetchQuestionsUseCaseProvider: Provider<FetchQuestionsUseCase>,
+        savedStateRegistryOwner: SavedStateRegistryOwner
+) : AbstractSavedStateViewModelFactory(savedStateRegistryOwner , null) {
+
+    override fun <T : ViewModel?> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T {
+        return when(modelClass) {
+            MyViewModel::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            MyViewModelSecond::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            else -> throw RuntimeException("Unknown ViewModel")
+        }
+    }
+}
+````
+
+````
+
+- After refactoring
+
+```kotlin
+class MyViewModel @Inject constructor(
+        private val fetchQuestionsUseCase: FetchQuestionsUseCase,
+        private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase
+) : SavedStateViewModel() {
+
+    private lateinit var _questions: MutableLiveData<List<Question>>
+    val question: LiveData<List<Question>> get() = _questions
+
+    override fun init(savedStateHandle: SavedStateHandle) {
+        _questions = savedStateHandle.getLiveData("questions")
+        viewModelScope.launch {
+            val result = fetchQuestionsUseCase.fetchLatestQuestions()
+            if (result is FetchQuestionsUseCase.Result.Success) {
+                _questions.value = result.questions
+            } else {
+                throw RuntimeException("Fetch Failed")
+            }
+        }
+    }
+
+}
+````
+
+### Create ViewModelKey, ViewModelModule
+
+```kotlin
+@MapKey
+annotation class ViewModelKey(val value: KClass<out ViewModel>) {
+}
+
+@Module
+abstract class ViewModelModule {
+
+    @Binds
+    @IntoMap
+    @ViewModelKey(MyViewModel::class)
+    abstract fun myViewModel(myViewModel: MyViewModel): ViewModel
+
+    @Binds
+    @IntoMap
+    @ViewModelKey(MyViewModelSecond::class)
+    abstract fun myViewModelSecond(myViewModelSecond: MyViewModelSecond): ViewModel
+
+}
+
+@PresentationScope
+@Subcomponent(modules = [PresentationModule::class, ViewModelModule::class])
+interface PresentationComponent {
+    fun inject(fragment: QuestionsListFragment)
+    fun inject(activity: QuestionDetailsActivity)
+    fun inject(questionsListActivity: QuestionsListActivity)
+    fun inject(viewModelActivity: ViewModelActivity)
+}
+```
+
+### Refactor ViewModelFactory
+
+- Before refactoring
+
+```kotlin
+class ViewModelFactory @Inject constructor(
+        private val fetchQuestionDetailsUseCaseProvider: Provider<FetchQuestionDetailsUseCase>,
+        private val fetchQuestionsUseCaseProvider: Provider<FetchQuestionsUseCase>,
+        savedStateRegistryOwner: SavedStateRegistryOwner
+) : AbstractSavedStateViewModelFactory(savedStateRegistryOwner , null) {
+
+    override fun <T : ViewModel?> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T {
+        return when(modelClass) {
+            MyViewModel::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            MyViewModelSecond::class.java -> MyViewModelSecond(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            else -> throw RuntimeException("Unknown ViewModel")
+        }
+    }
+}
+```
+
+- After refactoring
+
+```kotlin
+class ViewModelFactory @Inject constructor(
+        private val providersMap: Map<Class<out ViewModel>, @JvmSuppressWildcards Provider<ViewModel>>,
+        savedStateRegistryOwner: SavedStateRegistryOwner
+) : AbstractSavedStateViewModelFactory(savedStateRegistryOwner , null) {
+
+    override fun <T : ViewModel?> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T {
+//        val viewModel =  when(modelClass) {
+//            MyViewModel::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get()) as T
+//            MyViewModelSecond::class.java -> MyViewModelSecond(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get()) as T
+//            else -> throw RuntimeException("Unknown ViewModel")
+//        }
+        val provider = providersMap[modelClass]
+        val viewModel = provider?.get() ?: throw RuntimeException("unsupported viewmodel type: $modelClass")
+        if(viewModel is SavedStateViewModel) {
+            viewModel.init(handle)
+        }
+        return viewModel as T
+    }
+}
+```
