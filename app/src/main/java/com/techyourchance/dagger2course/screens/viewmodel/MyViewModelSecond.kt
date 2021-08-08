@@ -8,8 +8,11 @@ import kotlinx.coroutines.launch
 import java.lang.RuntimeException
 import javax.inject.Inject
 
-class MyViewModelSecond @Inject constructor(private val fetchQuestionsUseCase: FetchQuestionsUseCase,
-                                      private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase) : ViewModel() {
+class MyViewModelSecond @Inject constructor(
+        private val fetchQuestionsUseCase: FetchQuestionsUseCase,
+        private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase,
+        private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
 
     private val _questions = MutableLiveData<List<Question>>()
     val question: LiveData<List<Question>> = _questions

@@ -349,3 +349,153 @@ class ViewModelFactory @Inject constructor(
   `Map<Key_Type, Provider<Service_Type>>`
 
 - Use @JvmSupressWildcards at injection site to make it work in Kotlin
+
+# v.5.0 - ViewModel with SavedState
+
+⇒ Save ViewModel State
+
+### Dependency
+
+```kotlin
+implementation 'androidx.lifecycle:lifecycle-viewmodel-savedstate:2.2.0'
+```
+
+### ViewModel with additional argument, `private val savedStateHandle: SavedStateHandle`
+
+```kotlin
+class MyViewModel @Inject constructor(
+        private val fetchQuestionsUseCase: FetchQuestionsUseCase,
+        private val fetchQuestionDetailsUseCase: FetchQuestionDetailsUseCase,
+        private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+//    private val _questions = MutableLiveData<List<Question>>()
+
+    private val _questions: MutableLiveData<List<Question>> = savedStateHandle.getLiveData("questions")
+    val question: LiveData<List<Question>> = _questions
+
+    init {
+        viewModelScope.launch {
+            val result = fetchQuestionsUseCase.fetchLatestQuestions()
+            if (result is FetchQuestionsUseCase.Result.Success) {
+                _questions.value = result.questions
+            } else {
+                throw RuntimeException("Fetch Failed")
+            }
+        }
+    }
+
+}
+```
+
+### Refactor ViewModelFactory.kt
+
+- Before refactoring
+
+```kotlin
+class ViewModelFactory @Inject constructor(
+        private val myViewModelProvider: Provider<MyViewModel>,
+        private val myViewModelProviderSecond: Provider<MyViewModelSecond>
+): ViewModelProvider.Factory {
+    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+        return when(modelClass) {
+            MyViewModel::class.java -> myViewModelProvider.get() as T
+            MyViewModelSecond::class.java -> myViewModelProviderSecond.get() as T
+            else -> throw RuntimeException("Unsupported ViewModel Type: $modelClass")
+        }
+    }
+}
+```
+
+⇒ This implements `ViewModelProvider.Factory`
+
+- after refactoring
+
+```kotlin
+class ViewModelFactory @Inject constructor(
+        private val fetchQuestionDetailsUseCaseProvider: Provider<FetchQuestionDetailsUseCase>,
+        private val fetchQuestionsUseCaseProvider: Provider<FetchQuestionsUseCase>,
+        savedStateRegistryOwner: SavedStateRegistryOwner
+) : AbstractSavedStateViewModelFactory(savedStateRegistryOwner , null) {
+
+    override fun <T : ViewModel?> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T {
+        return when(modelClass) {
+            MyViewModel::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            MyViewModelSecond::class.java -> MyViewModel(fetchQuestionsUseCaseProvider.get(), fetchQuestionDetailsUseCaseProvider.get(), handle) as T
+            else -> throw RuntimeException("Unknown ViewModel")
+        }
+    }
+}
+```
+
+⇒ This extends `AbstractSavedStateViewModelFactory`
+
+### Create PresentationModule.kt to provide savedStateRegisterOwner
+
+```kotlin
+@Module
+class PresentationModule(private val savedStateRegistryOwner: SavedStateRegistryOwner) {
+
+    @Provides
+    fun savedStateRegistryOwner() =savedStateRegistryOwner
+
+}
+```
+
+### Provide it as Module
+
+```kotlin
+@PresentationScope
+@Subcomponent(modules = [PresentationModule::class])
+interface PresentationComponent {
+    fun inject(fragment: QuestionsListFragment)
+    fun inject(activity: QuestionDetailsActivity)
+    fun inject(questionsListActivity: QuestionsListActivity)
+    fun inject(viewModelActivity: ViewModelActivity)
+}
+```
+
+### Refactor all initialization
+
+```kotlin
+open class BaseActivity: AppCompatActivity() {
+
+    private val appComponent get() = (application as MyApplication).appComponent
+
+    val activityComponent by lazy {
+        appComponent.newActivityComponentBuilder()
+                .activity(this)
+                .build()
+    }
+
+    private val presentationComponent by lazy {
+        activityComponent.newPresentationComponent(PresentationModule(this))
+    }
+
+    protected val injector get() = presentationComponent
+}
+```
+
+```kotlin
+open class BaseDialog: DialogFragment() {
+
+    private val presentationComponent by lazy {
+        (requireActivity() as BaseActivity).activityComponent.newPresentationComponent(PresentationModule(this))
+    }
+
+    protected val injector get() = presentationComponent
+}
+```
+
+```kotlin
+open class BaseFragment: Fragment() {
+
+    private val presentationComponent by lazy {
+        (requireActivity() as BaseActivity).activityComponent.newPresentationComponent(PresentationModule(this))
+    }
+
+    protected val injector get() = presentationComponent
+}
+```
+
+⇒ PresentationModule(this)
